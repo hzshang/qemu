@@ -75,6 +75,8 @@
 #include <sys/sendfile.h>
 #endif
 
+#include "filter.h"
+
 #define termios host_termios
 #define winsize host_winsize
 #define termio host_termio
@@ -8097,6 +8099,8 @@ static int host_to_target_cpu_mask(const unsigned long *host_mask,
  * of syscall results, can be performed.
  * All errnos that do_syscall() returns must be -TARGET_<errcode>.
  */
+extern uint8 sys_map[];
+extern const struct syscall_table sys_pool[];
 static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                             abi_long arg2, abi_long arg3, abi_long arg4,
                             abi_long arg5, abi_long arg6, abi_long arg7,
@@ -8114,7 +8118,11 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
     struct statfs stfs;
 #endif
     void *p;
-
+    //TODO check cpu type
+    if( sys_map[num] ){
+        fprintf(stderr,"Bad syscall: %s\n",sys_pool[num].name);
+        return 0;
+    }
     switch(num) {
     case TARGET_NR_exit:
         /* In old applications this may be used to implement _exit(2).

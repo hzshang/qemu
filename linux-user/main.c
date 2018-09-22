@@ -37,7 +37,8 @@
 #include "trace/control.h"
 #include "target_elf.h"
 #include "cpu_loop-common.h"
-
+#include "filter.h"
+#include "syscall_table.h"
 char *exec_path;
 
 int singlestep;
@@ -81,7 +82,6 @@ int have_guest_base;
 unsigned long reserved_va;
 
 static void usage(int exitcode);
-
 static const char *interp_prefix = CONFIG_QEMU_INTERP_PREFIX;
 const char *qemu_uname_release;
 
@@ -385,6 +385,23 @@ static void handle_arg_trace(const char *arg)
     trace_file = trace_opt_parse(arg);
 }
 
+static void handle_dis_syscall(const char *arg)
+{
+    memset(sys_map,0,sizeof(sys_map));
+    for(const char *begin=arg;*begin;){
+        for(;*begin && *begin == ' ';begin++);
+        const char *it;
+        for(it=begin;*it && *it!=' ';it++);
+        for(int i=0;i<sizeof(sys_pool)/sizeof(struct syscall_table);i++){
+            if(!strncmp(begin,sys_pool[i].name,it-begin)){
+                //fprintf(stderr,"disable syscall: %s\n",sys_pool[i].name);
+                sys_map[sys_pool[i].num]=1;
+            }
+        }
+        begin=it;
+    }
+}
+
 struct qemu_argument {
     const char *argv;
     const char *env;
@@ -438,6 +455,8 @@ static const struct qemu_argument arg_table[] = {
      "",           "[[enable=]<pattern>][,events=<file>][,file=<file>]"},
     {"version",    "QEMU_VERSION",     false, handle_arg_version,
      "",           "display version information and exit"},
+    {"dis_syscall","QEMU_DIS_SYSCAL", true, handle_dis_syscall,
+    "\"open execve...\"",            "disable syscall( only support amd64 and i386 )"},
     {NULL, NULL, false, NULL, NULL, NULL}
 };
 
@@ -605,7 +624,6 @@ int main(int argc, char **argv, char **envp)
     module_call_init(MODULE_INIT_QOM);
 
     envlist = envlist_create();
-
     /* add current environment into the list */
     for (wrk = environ; *wrk != NULL; wrk++) {
         (void) envlist_setenv(envlist, *wrk);
